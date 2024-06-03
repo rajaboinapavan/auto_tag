@@ -1,10 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
 # Version: ..1
-# Timestamp: 2024-06-04 00:39:17 +0530
+# Timestamp: 2024-06-04 00:39:40 +0530
 # Author: Pavan Kumar
 
-change 42
+change 43
 
 
 use v5.32;
@@ -164,7 +164,8 @@ sub parse_startupfile {
 ";
 
 	while (<$STARTUPFH>) {
-		s/?
+		s/
+?
 $//ms;
 		s/\s+$//;
 		my ( $key, $value ) = split /=/, $_, 2;
@@ -227,7 +228,8 @@ sub handle_ini_file {
 	my $section = 'general';
 
 	while (<$INIFH>) {
-		s/?
+		s/
+?
 $//ms;
 		s/\s+$//;
 
@@ -471,7 +473,7 @@ sub build_startupfile {
 }
 
 sub usage {
-	my ($cmd) = $0 =~ /^.*?[\\/]?([^\\/]+?)(?:\.\w{1,4})?$/;
+	my ($cmd) = $0 =~ /^.*?[\/]?([^\/]+?)(?:\.\w{1,4})?$/;
 
 	print <<"EOF";
  $cmd: Calls the specified tech stack harness to convert a file
