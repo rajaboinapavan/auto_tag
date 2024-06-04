@@ -1,11 +1,5 @@
-#!C:/Strawberry/perl/bin/perl
-
-# Version: ..1
-# Timestamp: 2024-06-04 00:40:02 +0530
-# Author: Pavan Kumar
-
-change 44
-
+#!C:/Strawberry/perl/bin/perl\n\n# Version: 0.0.2\n# Timestamp: 2024-06-04 12:37:55 +0530\n# Author: Pavan Kumar\n
+# change 2
 
 use v5.32;
 
@@ -14,40 +8,33 @@ use warnings;
 
 ## ------------------------------- BEGIN Program Description ------------------------------------##
 #
-# This script converts input datafile(s) using the specified communications hub job and converter.
-# Converted output files are in .JSON format. Communications Hub contract starts with 800CH.
-#
-# The process invokes multiple helper scripts to obtain (see [helper] section in PreProcessor.ini)
-#
-# 1) get_ccs_setting.pl - get parameter value from [general] section from ccssite.ini
-# 2) get_chub_run_num.pl - get run number from Aardvark for given communications hub job
-# 3) get_client_run_num.pl - get run number from Aardvark for given client contract job
-# 4) get_encompass_qco.pl - get JSON content from Encompass for given client contract job
-# 5) get_stream_setup.pl - get stream setup from Aardvark for given client contract job
-#
-# Finally, it builds a startup file and invokes InspireRunJob.exe for doc composition.
+# This script converts input datafile(s) using the specified harness and converter.
+# Currently, converted output files are assumed to be in .JSON format.
+# The process invokes a helper script 'get_job_details.pl' to obtain:
+#    1) the job bag details aka stream_setup.xml file
+#    2) the quadient content object aka qco.json file
+# Finally, it builds a startup file and invokes InspireRunJob for doc composition.
 #
 # This application runs as follows:
-# C:\Strawberry\perlin\perl.exe \
+# C:\Strawberry\perl\bin\perl.exe \
 #   connect2_convert.pl           \
 #     --converter  <Converter>    \
-#     --contract   <ClientJob>    \
+#     --contract   <ClientJobNum> \
+#     --run        <ClientRunNum> \
 #     --inspirejob <InspireJob>   \
 #     --inspireenv <InspireEnv>   \
 #       <input_data_file>
 #
-# Alternatively, an Aardvark style --startupfile <StartupFile> can be used as follows:
-# C:\Strawberry\perlin\perl.exe \
-#   connect2_convert.pl --startupfile <StartupFile>
-#
-# where <StartupFile> contains the following key=value parameters:
+# Alternatively, an Aardvark style --startupfile <StartupFile> option can be specified.
+# <StartupFile> contains the following key=value parameters:
 # DataFileName=<input_data_file>
-# JobNumber=<ClientJob>
-# RunNumber=<ClientRun>
-# Extras=--inspirejob <InspireJob> --converter <Converter> --inspireenv <InspireEnv>
+# JobNumber=<ClientJobNum>
+# RunNumber=<ClientRunNum>
+# Extras=--inspirejob <InspireJob> --inspireenv <InspireEnv> --converter <Converter>
 #
-# All required command line options come from 'Extras=' key in <StartupFile>
-# The default for optional --inspireenv argument, is 'gold_env' parameter from ccssite.ini.
+# <StartupFile> is parsed to extract all required options
+# Most required command line options come from <StartupFile>
+# Remaining required command line options are parsed from 'Extras' key in <StartupFile>
 #
 ## --------------------------------- END Program Description ------------------------------------##
 
@@ -62,20 +49,21 @@ use JSON;
 
 ## --------------------------------- BEGIN Global variables -------------------------------------##
 
-my $INI_file = "$Bin/PreProcessor.ini";
+my $INI_file = "$Bin/communications_hub.ini";
 
 my %Options = (
 	'startupfile=s' => \my $StartupFile,
-	'contract=s'    => \my $ClientJob,
-	'converter=s'   => \my $Converter,
-	'inspirejob=s'  => \my $InspireJob,
-	'inspireenv=s'  => \my $InspireEnv,
+	'contract=s'    => \my $ClientJobNum,#
+	'run=i'         => \my $ClientRunNum,#
+	'converter=s'   => \my $Converter,#
+	'inspirejob=s'  => \my $InspireJob,#
+	'inspireenv=s'  => \my $InspireEnv,#
+	'inspirerun=i'  => \my $InspireRun,##############?????????????????
 	'startuponly'   => \my $StartupOnly,
 	'help'          => sub { usage(); exit 0 },
 );
 
 my %PP_startup;
-my $CHUB_ini;
 
 ## ---------------------------------- END Global variables --------------------------------------##
 ## -------------------------------------- BEGIN main() ------------------------------------------##
@@ -87,61 +75,58 @@ if ( defined $StartupFile ) {
 	%PP_startup = parse_startupfile($StartupFile);
 
 	$DataFileName = $PP_startup{'DataFileName'};
-	$ClientJob    = $PP_startup{'JobNumber'};
+	$ClientJobNum = $PP_startup{'JobNumber'};
+	$ClientRunNum = $PP_startup{'RunNumber'};
 
-	#hack $PP_startup{'JobDescription'} =~ / DEV / and $InspireEnv = 'development';
+	#hack $PP_startup{'JobDescription'} =~ / DEV / and $InspireEnv = 'dev';
 
 	if ( defined $PP_startup{'Extras'} ) {
 		Getopt::Long::GetOptionsFromString( $PP_startup{'Extras'}, %Options );
 	}
-
-	say "Preprocessor startup: ", np %PP_startup;
 }
 
-die "No input file specified! Use --help for usage
-"
+die "No input file specified! Use --help for usage\n"
 	if not defined $DataFileName;
 
-die "Specify a contract number with --contract. Use --help for usage
-"
-	if not defined $ClientJob;
+die "Specify a contract number with --contract. Use --help for usage\n"
+	if not defined $ClientJobNum;
 
-die "Specify a contract number with --inspirejob. Use --help for usage
-"
+die "Specify a run number with --run. Use --help for usage\n"
+	if not defined $ClientRunNum;
+
+die "Specify a contract number with --inspirejob. Use --help for usage\n"
 	if not defined $InspireJob;
 
-die "Specify a converter with --converter. Use --help for usage
-"
+die "Specify a converter with --converter. Use --help for usage\n"
 	if not defined $Converter;
 
-$CHUB_ini = handle_ini_file($INI_file);
+my $CHUB_ini = handle_ini_file($INI_file);
 say "Communications Hub ini: ", np $CHUB_ini;
 
-die "Invalid Communications Hub contract code '$InspireJob'
-"
-	if $InspireJob !~ /^$CHUB_ini->{'general'}{'commhub_contract'}\d+$/;
+die "Invalid Communications Hub contract code '$InspireJob'\n"
+	if $InspireJob !~ /^$CHUB_ini->{'general'}{'CommHubContract'}\d+$/;
 
-$InspireEnv //= $CHUB_ini->{'helper'}{'get_ccs_setting'}->('gold_env');
+$InspireEnv //=
+	$ENV{'AREA'} eq 'DEVELOPMENT'
+	? 'dev'
+	: $CHUB_ini->{'helper'}{'get_ccs_setting'}->('gold_env');
 
-die "No such inspire_env '$InspireEnv' specified in '$INI_file'
-"
+die "No such inspire_env '$InspireEnv' specified in '$INI_file'\n"
 	if not exists $CHUB_ini->{'inspire_env'}{$InspireEnv};
 
-die "Missing Converter '$Converter' specification in '$INI_file'
-"
+die "Missing Converter '$Converter' specification in '$INI_file'\n"
 	if not exists $CHUB_ini->{'converter'}{$Converter};
 
 # build InspireRunJob startup file from Preprocessor startup
-my $inspire_startup_file = build_startupfile();
+my $inspire_startup_file = build_startupfile(%PP_startup);
 
 # call InspireRunJob.exe with the Inspire Startup File
-my @inspire_runjob_cmd = ( $CHUB_ini->{'general'}{'inspire_runjob'} );
+my @inspire_runjob_cmd = ( $CHUB_ini->{'general'}{'InspireRunJob'} );
 push @inspire_runjob_cmd, '--startupfile', $inspire_startup_file;
 say 'RUNNING: ' . join( ' ', @inspire_runjob_cmd );
 
 # exit if --startuponly is set; this is to test startup file creation only
-die "Option --startuponly set. Exiting
-" if defined $StartupOnly;
+die "Option --startuponly set. Exiting\n" if defined $StartupOnly;
 
 run \@inspire_runjob_cmd;
 
@@ -153,20 +138,16 @@ sub parse_startupfile {
 	my $startupfile = shift;
 
 	if ( not -f $startupfile ) {
-		die "startup file '$startupfile' not found!
-";
+		die "startup file '$startupfile' not found!\n";
 	}
 
 	my %parsed;
 
-	open my $STARTUPFH, '<', $startupfile
-		or die "Failed to read startup file '$startupfile': $!
-";
+	open my $STARTUPFH, '<', $startupfile                             
+		or die "Failed to read startup file '$startupfile': $!\n";
 
 	while (<$STARTUPFH>) {
-		s/
-?
-$//ms;
+		s/\r?\n$//ms;
 		s/\s+$//;
 		my ( $key, $value ) = split /=/, $_, 2;
 
@@ -216,24 +197,20 @@ sub handle_ini_file {
 	my $ini_file = shift;
 
 	if ( not -f $ini_file ) {
-		die "INI file '$ini_file' not found!
-";
+		die "INI file '$ini_file' not found!\n";
 	}
 
 	open my $INIFH, '<', $ini_file
-		or die "Failed to read INI file '$ini_file': $!
-";
+		or die "Failed to read INI file '$ini_file': $!\n";
 
 	my $init;
 	my $section = 'general';
 
 	while (<$INIFH>) {
-		s/
-?
-$//ms;
+		s/\r?\n$//ms;
 		s/\s+$//;
 
-		next if /^[;#]/ || /^$/;
+		next if /^#/ || /^$/;
 
 		if (/^\[(\w+)\]$/) {
 			$section = $1;
@@ -250,45 +227,39 @@ $//ms;
 
 	close $INIFH;
 
-	my $irje = $init->{'general'}{'inspire_runjob'};
+	my $irje = $init->{'general'}{'InspireRunJob'};
 	$irje =~ s/\%(\w+)\%/$ENV{$1}/e;
-	$irje =~ s/\/\//g;
-	die "No such executable '$irje'
-" if not -x $irje;
-	$init->{'general'}{'inspire_runjob'} = $irje;
+	$irje =~ s/\\/\//g;
+	die "No such executable '$irje'\n" if not -x $irje;
+	$init->{'general'}{'InspireRunJob'} = $irje;
 
 	foreach my $key ( keys %{ $init->{'stack'} } ) {
 		my $exe = $init->{'stack'}{$key};
 		$exe =~ s/\%(\w+)\%/$ENV{$1}/e;
-		$exe =~ s/\/\//g;
-		die "No such executable '$exe'
-" if not -x $exe;
+		$exe =~ s/\\/\//g;
+		die "No such executable '$exe'\n" if not -x $exe;
 		$init->{'stack'}{$key} = $exe;
 	}
 
 	# validate the converter harnesses
 	foreach my $key ( keys %{ $init->{'harness'} } ) {
 		my ( $stack, $script ) = @{ $init->{'harness'}{$key} };
-		die "Invalid stack '$stack' for harness '$key'
-"
+		die "Invalid stack '$stack' for harness '$key'\n"
 			if not exists $init->{'stack'}{$stack};
 		$stack  = $init->{'stack'}{$stack};
 		$script = "$Bin/$script";
-		die "No such script '$script'
-" if not -f $script;
+		die "No such script '$script'\n" if not -f $script;
 		$init->{'harness'}{$key} = [ $stack, $script ];
 	}
 
 	# also, validate the 'helper' scripts
 	foreach my $key ( keys %{ $init->{'helper'} } ) {
 		my ( $stack, $script ) = @{ $init->{'helper'}{$key} };
-		die "Invalid stack '$stack' for helper '$key'
-"
+		die "Invalid stack '$stack' for helper '$key'\n"
 			if not exists $init->{'stack'}{$stack};
 		$stack  = $init->{'stack'}{$stack};
 		$script = "$Bin/$script";
-		die "No such script '$script'
-" if not -f $script;
+		die "No such script '$script'\n" if not -f $script;
 		$init->{'helper'}{$key} = sub {
 			my @command = ( $stack, $script, @_ );
 			say 'RUNNING: ' . join( ' ', @command );
@@ -299,11 +270,9 @@ $//ms;
 
 	foreach my $key ( keys %{ $init->{'converter'} } ) {
 		my $harness = $init->{'converter'}{$key}[0];
-		die "Invalid harness '$harness' for converter '$key'
-"
+		die "Invalid harness '$harness' for converter '$key'\n"
 			if not exists $init->{'harness'}{$harness};
-		die "Invalid / missing Q2G_type for converter '$key'
-"
+		die "Invalid / missing Q2G_type for converter '$key'\n"
 			if not defined $init->{'converter'}{$key}[1];
 	}
 
@@ -311,20 +280,17 @@ $//ms;
 }
 
 sub convert_input {
-	my ( $client_job, $client_run ) = @_;
+	my $converter = shift;
 
 	my $filename = basename($DataFileName);
 	move $DataFileName, '.'
-		or die "Could not move '$filename' to current dir: $!
-";
-
-	my $harness = $CHUB_ini->{'converter'}{$Converter}[0];
+		or die "Could not move '$filename' to current dir: $!\n";
 
 	# build the command for run()
-	my @command = @{ $CHUB_ini->{'harness'}{$harness} };
+	my @command = @{ $CHUB_ini->{'harness'}{ $converter->[0] } };
 	push @command, '--converter', $Converter;
-	push @command, '--contract',  $client_job;
-	push @command, '--run',       $client_run;
+	push @command, '--contract',  $ClientJobNum;
+	push @command, '--run',       $ClientRunNum;
 	push @command, '--file',      $filename;
 
 	say 'RUNNING: ' . join( ' ', @command );
@@ -339,49 +305,30 @@ sub convert_input {
 		}
 	}
 
-	die "'$Converter' converter failed to convert '$filename'
-"
+	die "'$Converter' converter failed to convert '$filename'\n"
 		if !( defined $jsonfile && -f $jsonfile && $jsonfile =~ /\.json$/i );
 
 	return ( $filename, $jsonfile );
 }
 
 sub build_startupfile {
-	# Client contract run number:
-	# if development environment, then get run number uding Aardvark web service
-	# if Aardvark startupfile is used, then get run number from the startupfile
-	my $client_run =
-		( $ENV{'AREA'} eq 'DEVELOPMENT' && $ENV{'DEVELOPMENT'} )
-		? $CHUB_ini->{'helper'}{'get_client_run_num'}->($ClientJob)
-		: $PP_startup{'RunNumber'};
+	my %job_params = @_;
 
-	die "Missing or Invalid Client Run Number '$client_run'
-"
-		if not( defined $client_run && $client_run =~ /^\d+$/ );
-
-	my $inspire_run =
-		$CHUB_ini->{'helper'}{'get_chub_run_num'}->( $InspireJob, $InspireEnv, $ClientJob, $client_run );
-
-	die "Missing or Invalid Inspire Run Number '$inspire_run'
-"
-		if !( defined $inspire_run && $inspire_run =~ /^\d+$/ );
+	say "Preprocessor params: ", np %job_params;
 
 	# convert the input data to JSON using harness and converter module
-	my ( $inputfile, $outputfile ) = convert_input( $ClientJob, $client_run );
+	my ( $inputfile, $outputfile ) = convert_input( $CHUB_ini->{'converter'}{$Converter} );
+	my ($doc_type) = ( $outputfile =~ /\.(\w+)\.json$/i );
 
 	# build the additional encompass quadient content object JSON file
-	my $qco_json_file = "${ClientJob}.${client_run}.QCO.json";
-	my $qco_json_str  = $CHUB_ini->{'helper'}{'get_encompass_qco'}->($ClientJob);
-	open my $qco_fh, '>', $qco_json_file or die "Failed to open '$qco_json_file': $!
-";
+	my $qco_json_file = "${ClientJobNum}.${ClientRunNum}.QCO.json";
+	my $qco_json_str  = $CHUB_ini->{'helper'}{'get_encompass_qco'}->($ClientJobNum);
+	open my $qco_fh, '>', $qco_json_file or die "Failed to open '$qco_json_file': $!\n";
 	print $qco_fh $qco_json_str;
 	close $qco_fh;
 
-	$outputfile =~ /\.(\w+)\.json$/i and my $doc_type = $1;
-
-	my $job_description = "$InspireJob - Step 4 - Communications Hub ";
-	$job_description .= ( $InspireEnv =~ /^dev/i ? 'DEV ' : 'QA ' ) if $InspireEnv !~ /^prod/i;
-	$job_description .= "- $ClientJob Run #$client_run $doc_type - Run #$inspire_run";
+	my $qco_data = decode_json($qco_json_str);
+	my $approval = $qco_data->{'content'}{'data'}[0]{'operations_details'}{'requires_approval_yn'} || 'No';
 
 	# now, let's construct this very long Extras argument for the Inspire job
 	#Extras= \
@@ -394,13 +341,10 @@ sub build_startupfile {
 	# --site                processing                <-- from get_job_details()
 	# --streamSetupXML      stream_setup.xml          <-- from get_job_details()
 
-	my $stream_setup_xml = "stream_setup_${ClientJob}_${client_run}.xml";
-	open my $ssx_fh, '>', $stream_setup_xml or die "Failed to open '$stream_setup_xml': $!
-";
-	print $ssx_fh $CHUB_ini->{'helper'}{'get_stream_setup'}->($ClientJob);
+	my $stream_setup_xml = "stream_setup_${ClientJobNum}_${ClientRunNum}.xml";
+	open my $ssx_fh, '>', $stream_setup_xml or die "Failed to open '$stream_setup_xml': $!\n";
+	print $ssx_fh $CHUB_ini->{'helper'}{'get_stream_setup'}->($ClientJobNum);
 	close $ssx_fh;
-
-	( my $job_config_name = $outputfile ) =~ s/\.(\w+)\.json$/JobConfig_$1.xml/;
 
 	my $get_ccs_setting = $CHUB_ini->{'helper'}{'get_ccs_setting'};
 
@@ -408,61 +352,87 @@ sub build_startupfile {
 		streamSetupXML      => $stream_setup_xml,
 		site                => $get_ccs_setting->('site'),
 		aardvarkAppAdminUri => $get_ccs_setting->('aardvark_web_svc_appadmin_proxy'),
-		environment         => $CHUB_ini->{'inspire_env'}{ lc $InspireEnv },
+		environment         => $CHUB_ini->{'inspire_env'}{$InspireEnv},
 		jobConfigName       => "JobConfig_${doc_type}.xml",
 		addJobQueue         => 'true',
 		q2g                 => 'true',
 		icmRegion           => 'US',
 	);
 
+	$InspireRun //= $ENV{'AREA'} eq 'DEVELOPMENT'
+		? $CHUB_ini->{'default'}{'DevInspireRunNumber'}    # using 'default' value for 'DEVELOPMENT' environment
+		: $CHUB_ini->{'helper'}{'get_chub_run_num'}->( $InspireJob, $ClientJobNum, $ClientRunNum );
+
 	my $today_and_now = time2str( '%j.%H%M%S', time );
-	my $startup_filename = "${InspireJob}.${inspire_run}.${today_and_now}.startup.txt";
+	my $startup_filename = "${InspireJob}.${InspireRun}.${today_and_now}.startup.txt";
 
 	( my $progress_filename = $startup_filename ) =~ s/startup/progress/;
 	( my $trace_filename    = $startup_filename ) =~ s/startup/trace/;
 	( my $error_filename    = $startup_filename ) =~ s/startup/error/;
 
+	my $today = time2str( '%A, %B %d, %Y', time );    # e.g. Friday, February 02, 2024
+
+	my $job_description = "$InspireJob Communication Hub - $ClientJobNum $doc_type - Run #$InspireRun";
+
 	my %inspire_startup = (
 		JobNumber        => $InspireJob,
-		ClientCode       => $CHUB_ini->{'general'}{'commhub_contract'},
-		RunNumber        => $inspire_run,
-		DataFileName     => [ $inputfile, $outputfile, $qco_json_file ],
+		ClientCode       => $CHUB_ini->{general}{'CommHubContract'},
+		RunNumber        => $InspireRun,
 		JobDescription   => $job_description,
+		ProcessingScript => $CHUB_ini->{'general'}{'InspireRunJob'},
+		DataFileName     => [ $inputfile, $outputfile, $qco_json_file ],
 		Extras           => join( ' ', map { "--$_ $startup_extras{$_}" } sort keys %startup_extras ),
-		StartupFileName  => $startup_filename,
-		ProgressFile     => $progress_filename,
-		TraceFile        => $trace_filename,
-		ErrorFile        => $error_filename,
-		ProcessingScript => $CHUB_ini->{'general'}{'inspire_runjob'},
-		SLAProcessCode => $PP_startup{'SLAProcessCode'} // 'All',
-		Product        => $PP_startup{'Product'}        // '(null)',
-		# following custom keys are used during post-processing in Q2G step
-		_requireSignOffYN =>
-			decode_json($qco_json_str)->{'content'}{'data'}[0]{'operations_details'}{'requires_approval_yn'} || 'No',
-		_Q2GType => $CHUB_ini->{'converter'}{$Converter}[1],
-	);
 
-	$inspire_startup{'ProcessingScript'} = '(null)' if defined $StartupOnly;
+		StartupFileName => $startup_filename,
+		ProgressFile    => $progress_filename,
+		TraceFile       => $trace_filename,
+		ErrorFile       => $error_filename,
+
+		# adding custom key to be used later in Q2G
+		_requireSignOffYN => $approval,
+		_Q2GType          => $CHUB_ini->{'converter'}{$Converter}[1],
+
+		# copy these values from converter job_params file or assign 'default' for DEVELOPMENT
+
+		EmailAddresses_FailedToQueue => $job_params{'EmailAddresses_FailedToQueue'}
+			// $CHUB_ini->{'default'}{'support_email'},
+		EmailAddresses_Failed => $job_params{'EmailAddresses_Failed'} // $CHUB_ini->{'default'}{support_email},
+
+		ComputerName   => $job_params{'ComputerName'}   // $ENV{'COMPUTERNAME'},
+		UserName       => $job_params{'UserName'}       // "$ENV{'USERDOMAIN'}\\$ENV{'USERNAME'}",
+		ProcessingDate => $job_params{'ProcessingDate'} // $today,
+		LastUpdate     => $job_params{'LastUpdate'}     // $today,
+
+		SLAProcessCode  => $job_params{'SLAProcessCode'}  // 'All',
+		Product         => $job_params{'Product'}         // '(null)',
+		Package         => $job_params{'Package'}         // '(null)',
+		PackageType     => $job_params{'PackageType'}     // '(null)',
+		PackageVersion  => $job_params{'PackageVersion'}  // '(null)',
+		ExternalDBJobId => $job_params{'ExternalDBJobId'} // '(null)',
+
+		TestFlag         => $job_params{'TestFlag'}         // 0,
+		JobId            => $job_params{'JobId'}            // 0,
+		JobStatusId      => $job_params{'JobStatusId'}      // 0,
+		JobQueueId       => $job_params{'JobQueueId'}       // 0,
+		LinkedJobQueueId => $job_params{'LinkedJobQueueId'} // 0,
+		ProcessId        => $job_params{'ProcessId'}        // 0,
+		Priority         => $job_params{'Priority'}         // 1,
+	);
 
 	say "InspireRunJob startup: ", np %inspire_startup;
 
-	open my $startup_fh, '>', $startup_filename or die "Failed to open $startup_filename: $!
-";
+	open my $startup_fh, '>', $startup_filename or die "Failed to open $startup_filename: $!\n";
 
+	# add sorted key=value pairs from job_params hash to job_params file
 	foreach my $key ( sort keys %inspire_startup ) {
 		my $value = $inspire_startup{$key};
-		$value = '(null)' if not defined $value;
+		next if not defined $value;
 
 		if ( ref($value) eq 'ARRAY' ) {
-			foreach ( sort @{$value} ) {
-				$_ = '(null)' if not defined $_;
-				print $startup_fh "$key=$_
-";
-			}
+			map { print $startup_fh "$key=$_\n" } sort @{$value};
 		}
 		else {
-			print $startup_fh "$key=$value
-";
+			print $startup_fh "$key=$value\n";
 		}
 	}
 
@@ -473,19 +443,21 @@ sub build_startupfile {
 }
 
 sub usage {
-	my ($cmd) = $0 =~ /^.*?[\/]?([^\/]+?)(?:\.\w{1,4})?$/;
+	my ($cmd) = $0 =~ /^.*?[\\\/]?([^\\\/]+?)(?:\.\w{1,4})?$/;
 
 	print <<"EOF";
  $cmd: Calls the specified tech stack harness to convert a file
 
 Options:
-  --startupfile  <FILE>         Aardvark auto-proc startup file
-
-Development Options:
-  --contract     <CONTRACT>     client job number
+  --startupfile  <FILE>         Aardvark auto-proc INIFH file
   --inspirejob   <CONTRACT>     Communications Hub contract code
   --converter    <CONVERTER>    converter name (see .ini file)
-  --inspireenv   <GOLD_ENV>     inspire env e.g. uat (optional)
+
+Development Options:
+  --inspireenv   <ENV>          inspire env e.g. dev (optional)
+  --inspirerun   <RUN_NUMBER>   inspire run number(optional)
+  --contract     <CONTRACT>     client job number
+  --run          <NUMBER>       client run number
 
   --startuponly                 build inspire INIFH file only; 
                                 do not execute InspireRunJob
