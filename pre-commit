@@ -1,0 +1,150 @@
+#!/bin/bash
+
+# Pre-commit hook to ensure Perl scripts have the required header and use tag as version
+
+# Function to update the header of a Perl script
+update_header() {
+    local file="$1"
+    local filename=$(basename "$file")
+    local shebang=$(grep -Eo '^#!.*perl' "$file" | head -1)
+    local author=$(git config user.name)
+    local content=$(<"$file") # Read the current contents of the file
+
+    # Function to determine the next version
+    get_next_version() {
+        # Fetch the latest tags from the remote repository with retries
+        local max_retries=3
+        for i in $(seq 1 $max_retries); do
+            if git fetch --tags; then
+                break
+            elif [ "$i" -eq "$max_retries" ]; then
+                echo "Error: Failed to fetch tags after $max_retries attempts."
+                exit 1
+            fi
+            echo "Retrying fetch tags... ($i/$max_retries)"
+            sleep 2
+        done
+
+        # Extract the latest tag for this specific file, filtering by the expected format
+        local latest_tag
+        latest_tag=$(git tag --list "${filename}_v*" --sort=-v:refname | grep -E "^${filename}_v[0-9]+\.[0-9]+\.[0-9]+$" | head -1)
+
+        # Check if the latest tag follows semantic versioning (e.g., scriptname_v1.2.3)
+        local version
+        if [[ "$latest_tag" =~ ^${filename}_v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Parse version components
+            version="$latest_tag" # Use the tag itself as the version
+            IFS='.' read -r major minor patch <<< "$version"
+
+            # Increment patch version
+            patch=$((patch + 1))
+        else
+            # Initialize semantic versioning from v0.0.1
+            major=0
+            minor=0
+            patch=1
+        fi
+
+        # Construct the new version
+        local new_version="$major.$minor.$patch"
+
+        # Check if the new tag already exists
+        while git rev-parse "${filename}_v$new_version" >/dev/null 2>&1; do
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch"
+        done
+
+        echo "$new_version"
+    }
+
+    # Get the next version
+    local new_version
+    new_version=$(get_next_version)
+
+    # Get the current timestamp
+    local timestamp
+    timestamp=$(date +"%Y-%m-%d %H:%M:%S %z")
+
+    # Prepare the new header
+    local new_header
+    new_header="$shebang\n\n# Version: $new_version\n# Timestamp: $timestamp\n# Author: $author"
+
+    # Adjust the format for printf to maintain line breaks
+    printf "%b\n" "$new_header"
+
+    # Split content into header and script body if header exists
+    local header body new_content
+    if grep -q '^# Author:' "$file"; then
+        header=$(printf "%s" "$content" | sed -n '/^#!/,/^# Author:/p')
+        body=$(printf "%s" "$content" | sed '1,/^# Author:/d')
+        
+        # Remove previous header components
+        body=$(printf "%s" "$body" | sed '/^#!/d' | sed '/^# Version:/d' | sed '/^# Timestamp:/d' | sed '/^# Author:/d')
+        
+        # Combine the new header and original body
+        new_content=$(printf "%b\n%s" "$new_header" "$body")
+    else
+        # If no existing header, remove the shebang line if present
+        body=$(printf "%s" "$content" | sed '/^#!.*perl/d')
+        new_content=$(printf "%b\n%s" "$new_header" "$body")
+    fi
+
+    # Update the file with the new content
+    printf "%s\n" "$new_content" > "$file"
+
+    # Try to create and push the new tag with a locking mechanism
+    local new_tag="${filename}_v$new_version"
+    local lock_file=".tag_creation_lock"
+    local lock_timeout=60
+    local start_time=$(date +%s)
+
+    while : ; do
+        # Attempt to create a lock file
+        if ( set -o noclobber; echo "$$" > "$lock_file" ) 2> /dev/null; then
+            trap 'rm -f "$lock_file"; exit $?' INT TERM EXIT
+
+            # Create and push the new tag
+            if git tag -a "$new_tag" -m "Version $new_version"; then
+                git push origin "$new_tag" || { echo "Failed to push tag"; rm -f "$lock_file"; exit 1; }
+                rm -f "$lock_file"
+                trap - INT TERM EXIT
+                break
+            else
+                rm -f "$lock_file"
+                trap - INT TERM EXIT
+                echo "Tag $new_tag already exists. Incrementing version..."
+                new_version=$(get_next_version)
+                new_tag="${filename}_v$new_version"
+            fi
+        else
+            # Check if lock timeout has been reached
+            if (( $(date +%s) - $start_time > $lock_timeout )); then
+                echo "Error: Failed to acquire lock within $lock_timeout seconds."
+                exit 1
+            fi
+            echo "Waiting for lock... retrying"
+            sleep 2
+        fi
+    done
+}
+
+# Fetch tags once before processing files
+if ! git fetch --tags; then
+    echo "Error: Failed to fetch tags from the remote repository."
+    exit 1
+fi
+
+# Find all Perl scripts being committed
+perl_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.pl$')
+
+if [ -n "$perl_files" ]; then
+    for file in $perl_files; do
+        # Update the header of each Perl script
+        update_header "$file"
+
+        # Stage the updated file
+        git add "$file"
+    done
+fi
+
+exit 0
