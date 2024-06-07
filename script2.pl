@@ -1,9 +1,5 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.1
-# Timestamp: 2024-06-07 12:56:53 +0530
-# Author: Pavan Kumar
-
 use v5.32;
 
 use strict;
