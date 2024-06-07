@@ -1,10 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.9
-# Timestamp: 2024-06-07 19:00:02 +0530
+# Version: 0.0.10
+# Timestamp: 2024-06-07 19:05:23 +0530
 # Author: macrosoft
 
-# change 7
+# change 10
 use v5.32;
 
 use strict;
