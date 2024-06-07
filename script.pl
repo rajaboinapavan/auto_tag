@@ -1,10 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.6
-# Timestamp: 2024-06-07 14:11:45 +0530
+# Version: 0.0.2
+# Timestamp: 2024-06-07 18:20:35 +0530
 # Author: Pavan Kumar
 
-# change 6
+# change 2
 use v5.32;
 
 use strict;
