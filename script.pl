@@ -1,6 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
-# change from macrosoft 1
+# Version: 0.0.18
+# Timestamp: 2024-06-12 19:28:03 +0530
+# Author: d disk
+
+# change from macrosoft 2
 
 use v5.32;
 
