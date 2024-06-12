@@ -1,10 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.18
-# Timestamp: 2024-06-12 19:28:03 +0530
+# Version: 0.0.19
+# Timestamp: 2024-06-12 19:28:39 +0530
 # Author: d disk
 
-# change from macrosoft 2
+# made change on 18 for 19
 
 use v5.32;
 
