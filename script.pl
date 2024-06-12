@@ -1,10 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
 # Version: 0.0.15
-# Timestamp: 2024-06-12 12:24:01 +0530
+# Timestamp: 2024-06-12 12:26:46 +0530
 # Author: local macro pc
 
-# change for 16
+# change on 15 for 16
 use v5.32;
 
 use strict;
