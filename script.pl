@@ -1,10 +1,11 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.26
-# Timestamp: 2024-06-17 20:29:02 +0530
+# Version: 0.0.27
+# Timestamp: 2024-06-17 22:14:30 +0530
 # Author: d disk
 
-# made change on 25 for 26
+# made change on 26 for 27
+
 use v5.32;
 
 use strict;
