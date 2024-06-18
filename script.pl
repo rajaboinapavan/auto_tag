@@ -1,12 +1,10 @@
-# Version: 2
-# Version: 1
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.39
-# Timestamp: 2024-06-18 14:15:06 +0530
+# Version: 0.0.40
+# Timestamp: 2024-06-18 21:07:35 +0530
 # Author: d disk
 
-# made change on 38 for 39
+# made change on 39 for 40
 
 
 use v5.32;
