@@ -1,7 +1,7 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.2
-# Timestamp: 2024-06-18 12:44:52 +0530
+# Version: 0.0.3
+# Timestamp: 2024-06-18 12:45:27 +0530
 # Author: d disk
 
 use v5.32;
@@ -18,7 +18,7 @@ use warnings;
 #    2) the quadient content object aka qco.json file
 # Finally, it builds a startup file and invokes InspireRunJob for doc composition.
 #
-# This application runs as follows:#
+# This application runs as follows:# on 2 for 3
 # C:\Strawberry\perl\bin\perl.exe \
 #   connect2_convert.pl           \
 #     --converter  <Converter>    \
