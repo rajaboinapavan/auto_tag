@@ -1,10 +1,10 @@
 #!C:/Strawberry/perl/bin/perl
 
-# Version: 0.0.47
-# Timestamp: 2024-06-19 20:56:10 +0530
+# Version: 0.0.48
+# Timestamp: 2024-06-19 20:58:15 +0530
 # Author: rajaboinapavan
 
-# change from macrosoft 1
+# change in 47 for 48clear
 
 use v5.32;
 
