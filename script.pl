@@ -1,6 +1,6 @@
 #!C:/Strawberry/perl/bin/perl
 
-# change from macrosoft 1
+# change from macrosoft 2
 
 use v5.32;
 
