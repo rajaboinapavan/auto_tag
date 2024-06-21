@@ -1,10 +1,5 @@
 package Test;
 
-# Version: 0.0.1
-# Timestamp: 2024-06-21 17:52:28 +0530
-# Author: rajaboinapavan
-package Test;
-
 my $INI_file = "$Bin/communications_hub.ini";
 
 my %Options = (
