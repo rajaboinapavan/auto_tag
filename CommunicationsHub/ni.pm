@@ -1,8 +1,8 @@
-# Version: 0.0.1
-# Timestamp: 2024-06-21 19:00:50 +0530
+# Version: 0.0.2
+# Timestamp: 2024-06-21 19:01:16 +0530
 # Author: rajaboinapavan
 
-package MyModule;
+package MyModule; #
 
 use strict;
 use warnings;
