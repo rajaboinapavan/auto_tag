@@ -3,7 +3,7 @@ package MyModule;
 use strict;
 use warnings;
 
-# Constructor method ##
+# Constructor method ###
 sub new {
     my ($class, %args) = @_;
     my $self = bless {
