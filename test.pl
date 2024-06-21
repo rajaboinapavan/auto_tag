@@ -1,8 +1,9 @@
-; Version: 0.0.1
-; Timestamp: 2024-06-21 18:44:39 +0530
-; Author: rajaboinapavan
+# Version: 0.0.2
+# Timestamp: 2024-06-21 18:48:52 +0530
+# Author: rajaboinapavan
 
-#!C:/Strawberry/perl/bin/perl
+
+#!C:/Strawberry/perl/bin/perl #
 
 use v5.32;
 
